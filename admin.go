@@ -946,7 +946,7 @@ func (h adminHandler) originAllowed(origin *url.URL) bool {
 	return false
 }
 
-// etagHasher returns a the hasher we used on the config to both
+// etagHasher returns the hasher we used on the config to both
 // produce and verify ETags.
 func etagHasher() hash.Hash { return xxhash.New() }
 
@@ -1029,6 +1029,13 @@ func handleConfig(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 
+		// If this request changed the config, clear the last
+		// config info we have stored, if it is different from
+		// the original source.
+		ClearLastConfigIfDifferent(
+			r.Header.Get("Caddy-Config-Source-File"),
+			r.Header.Get("Caddy-Config-Source-Adapter"))
+
 	default:
 		return APIError{
 			HTTPStatus: http.StatusMethodNotAllowed,
@@ -1103,7 +1110,10 @@ func unsyncedConfigAccess(method, path string, body []byte, out io.Writer) error
 	if len(body) > 0 {
 		err = json.Unmarshal(body, &val)
 		if err != nil {
-			return fmt.Errorf("decoding request body: %v", err)
+			if jsonErr, ok := err.(*json.SyntaxError); ok {
+				return fmt.Errorf("decoding request body: %w, at offset %d", jsonErr, jsonErr.Offset)
+			}
+			return fmt.Errorf("decoding request body: %w", err)
 		}
 	}
 

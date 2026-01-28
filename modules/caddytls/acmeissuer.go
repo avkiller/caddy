@@ -244,6 +244,9 @@ func (iss *ACMEIssuer) makeIssuerTemplate(ctx caddy.Context) (certmagic.ACMEIssu
 			template.DNS01Solver = iss.Challenges.DNS.solver
 		}
 		template.ListenHost = iss.Challenges.BindHost
+		if iss.Challenges.Distributed != nil {
+			template.DisableDistributedSolvers = !*iss.Challenges.Distributed
+		}
 	}
 
 	if iss.PreferredChains != nil {
@@ -480,6 +483,20 @@ func (iss *ACMEIssuer) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 			}
 			iss.Challenges.TLSALPN.Disabled = true
 
+		case "distributed":
+			if !d.NextArg() {
+				return d.ArgErr()
+			}
+			if d.Val() != "false" {
+				return d.Errf("only accepted value is 'false'")
+			}
+			if iss.Challenges == nil {
+				iss.Challenges = new(ChallengesConfig)
+			}
+			if iss.Challenges.Distributed == nil {
+				iss.Challenges.Distributed = new(bool)
+			}
+
 		case "alt_http_port":
 			if !d.NextArg() {
 				return d.ArgErr()
@@ -654,7 +671,7 @@ func ParseCaddyfilePreferredChainsOptions(d *caddyfile.Dispenser) (*ChainPrefere
 		switch d.Val() {
 		case "root_common_name":
 			rootCommonNameOpt := d.RemainingArgs()
-			chainPref.RootCommonName = rootCommonNameOpt
+			chainPref.RootCommonName = append(chainPref.RootCommonName, rootCommonNameOpt...)
 			if rootCommonNameOpt == nil {
 				return nil, d.ArgErr()
 			}
@@ -664,7 +681,7 @@ func ParseCaddyfilePreferredChainsOptions(d *caddyfile.Dispenser) (*ChainPrefere
 
 		case "any_common_name":
 			anyCommonNameOpt := d.RemainingArgs()
-			chainPref.AnyCommonName = anyCommonNameOpt
+			chainPref.AnyCommonName = append(chainPref.AnyCommonName, anyCommonNameOpt...)
 			if anyCommonNameOpt == nil {
 				return nil, d.ArgErr()
 			}

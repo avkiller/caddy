@@ -458,8 +458,6 @@ func parseOptAutoHTTPS(d *caddyfile.Dispenser, _ any) (any, error) {
 		case "disable_certs":
 		case "ignore_loaded_certs":
 		case "prefer_wildcard":
-			break
-
 		default:
 			return "", d.Errf("auto_https must be one of 'off', 'disable_redirects', 'disable_certs', 'ignore_loaded_certs', or 'prefer_wildcard'")
 		}
@@ -474,6 +472,8 @@ func unmarshalCaddyfileMetricsOptions(d *caddyfile.Dispenser) (any, error) {
 		switch d.Val() {
 		case "per_host":
 			metrics.PerHost = true
+		case "observe_catchall_hosts":
+			metrics.ObserveCatchallHosts = true
 		default:
 			return nil, d.Errf("unrecognized servers option '%s'", d.Val())
 		}
@@ -557,8 +557,14 @@ func parseOptPreferredChains(d *caddyfile.Dispenser, _ any) (any, error) {
 
 func parseOptDNS(d *caddyfile.Dispenser, _ any) (any, error) {
 	d.Next() // consume option name
+	optName := d.Val()
 
-	if !d.Next() { // get DNS module name
+	// get DNS module name
+	if !d.Next() {
+		// this is allowed if this is the "acme_dns" option since it may refer to the globally-configured "dns" option's value
+		if optName == "acme_dns" {
+			return nil, nil
+		}
 		return nil, d.ArgErr()
 	}
 	modID := "dns.providers." + d.Val()
